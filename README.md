@@ -2,11 +2,11 @@
 
 A simple file compressor
 
+### [Download fc.exe (8 KB)](https://github.com/mfbulut/fc/releases/latest)
+
 > [!WARNING]
 > Do not run on untrusted input. The author assume no responsibility for any data loss or corruption.
 >
-
-### [Download fc.exe (8 KB)](https://github.com/mfbulut/GriPlayer/releases/latest)
 
 ## Overview
 
