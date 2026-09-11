@@ -2,85 +2,107 @@ package fc
 
 import "core:slice"
 
-// Linear-Time Suffix Array Induced Sorting (SA-IS)
-sais :: proc(s: []int, sa: []int, n: int, k: int) {
-	is_s := make([]bool, n)
+is_s_get :: #force_inline proc "contextless" (b: []u64, i: int) -> bool {
+	return (b[i >> 6] & (1 << u64(i & 63))) != 0
+}
+
+is_s_set :: #force_inline proc "contextless" (b: []u64, i: int) {
+	b[i >> 6] |= (1 << u64(i & 63))
+}
+
+get_buckets :: #force_inline proc "contextless" (counts: []i32, bkt: []i32, k: int, end: bool) {
+	sum: i32 = 0
+	if end {
+		for i in 0..<k {
+			sum += counts[i]
+			bkt[i] = sum
+		}
+	} else {
+		for i in 0..<k {
+			bkt[i] = sum
+			sum += counts[i]
+		}
+	}
+}
+
+induce_sort :: proc(s: []$T, sa: []i32, is_s: []u64, n: int, k: int, counts: []i32, bkt: []i32) {
+	get_buckets(counts, bkt, k, false)
+	for i in 0..<n {
+		j := sa[i] - 1
+		if j >= 0 && !is_s_get(is_s, int(j)) {
+			c := int(s[j])
+			sa[bkt[c]] = j
+			bkt[c] += 1
+		}
+	}
+
+	get_buckets(counts, bkt, k, true)
+	for i := n - 1; i >= 0; i -= 1 {
+		j := sa[i] - 1
+		if j >= 0 && is_s_get(is_s, int(j)) {
+			c := int(s[j])
+			bkt[c] -= 1
+			sa[bkt[c]] = j
+		}
+	}
+}
+
+sais :: proc(s: []$T, sa: []i32, n: int, k: int) {
+	words := (n + 63) / 64
+	is_s := make([]u64, words)
 	defer delete(is_s)
 
-	is_s[n - 1] = true
+	is_s_set(is_s, n - 1)
 	for i := n - 2; i >= 0; i -= 1 {
-		is_s[i] = s[i] < s[i + 1] || (s[i] == s[i + 1] && is_s[i + 1])
+		if s[i] < s[i + 1] || (s[i] == s[i + 1] && is_s_get(is_s, i + 1)) {
+			is_s_set(is_s, i)
+		}
 	}
 
-	bkt := make([]int, k)
+	counts := make([]i32, k)
+	defer delete(counts)
+	for i in 0..<n do counts[s[i]] += 1
+
+	bkt := make([]i32, k)
 	defer delete(bkt)
 
-	get_buckets :: proc(s: []int, bkt: []int, n: int, k: int, end: bool) {
-		slice.zero(bkt)
-		for i in 0..<n do bkt[s[i]] += 1
-		sum := 0
-		for i in 0..<k {
-			sum += bkt[i]
-			bkt[i] = sum if end else (sum - bkt[i])
-		}
-	}
-
-	induce_sort :: proc(s: []int, sa: []int, is_s: []bool, n: int, k: int, bkt: []int) {
-		get_buckets(s, bkt, n, k, false)
-		for i in 0..<n {
-			j := sa[i] - 1
-			if j >= 0 && !is_s[j] {
-				sa[bkt[s[j]]] = j
-				bkt[s[j]] += 1
-			}
-		}
-
-		get_buckets(s, bkt, n, k, true)
-		for i := n - 1; i >= 0; i -= 1 {
-			j := sa[i] - 1
-			if j >= 0 && is_s[j] {
-				bkt[s[j]] -= 1
-				sa[bkt[s[j]]] = j
-			}
-		}
-	}
-
 	slice.fill(sa, -1)
-	get_buckets(s, bkt, n, k, true)
+	get_buckets(counts, bkt, k, true)
 	for i in 1..<n {
-		if is_s[i] && !is_s[i - 1] {
-			bkt[s[i]] -= 1
-			sa[bkt[s[i]]] = i
+		if is_s_get(is_s, i) && !is_s_get(is_s, i - 1) {
+			c := int(s[i])
+			bkt[c] -= 1
+			sa[bkt[c]] = i32(i)
 		}
 	}
 
-	induce_sort(s, sa, is_s, n, k, bkt)
+	induce_sort(s, sa, is_s, n, k, counts, bkt)
 
 	n1 := 0
 	for i in 0..<n {
-		if sa[i] > 0 && is_s[sa[i]] && !is_s[sa[i] - 1] {
+		if sa[i] > 0 && is_s_get(is_s, int(sa[i])) && !is_s_get(is_s, int(sa[i] - 1)) {
 			sa[n1] = sa[i]
 			n1 += 1
 		}
 	}
 	for i in n1..<n do sa[i] = -1
 
-	name := 0
-	prev := -1
+	name: i32 = 0
+	prev: i32 = -1
 	for i in 0..<n1 {
 		pos := sa[i]
 		diff := false
 		if prev == -1 {
 			diff = true
 		} else {
-			for d := 0; ; d += 1 {
+			for d: i32 = 0; ; d += 1 {
 				p1 := pos + d
 				p2 := prev + d
-				if p1 >= n || p2 >= n || s[p1] != s[p2] || is_s[p1] != is_s[p2] {
+				if p1 >= i32(n) || p2 >= i32(n) || s[p1] != s[p2] || is_s_get(is_s, int(p1)) != is_s_get(is_s, int(p2)) {
 					diff = true
 					break
 				}
-				if d > 0 && (is_s[p1] && !is_s[p1 - 1] || is_s[p2] && !is_s[p2 - 1]) {
+				if d > 0 && ((is_s_get(is_s, int(p1)) && !is_s_get(is_s, int(p1 - 1))) || (is_s_get(is_s, int(p2)) && !is_s_get(is_s, int(p2 - 1)))) {
 					break
 				}
 			}
@@ -92,10 +114,10 @@ sais :: proc(s: []int, sa: []int, n: int, k: int) {
 		}
 
 		pos = pos >> 1 if (pos & 1) == 0 else (pos - 1) >> 1
-		sa[n1 + pos] = name - 1
+		sa[n1 + int(pos)] = name - 1
 	}
 
-	s1 := make([]int, n1)
+	s1 := make([]i32, n1)
 	defer delete(s1)
 	j := 0
 	for i in n1..<n {
@@ -105,19 +127,19 @@ sais :: proc(s: []int, sa: []int, n: int, k: int) {
 		}
 	}
 
-	sa1 := make([]int, n1)
+	sa1 := make([]i32, n1)
 	defer delete(sa1)
-	if name < n1 {
-		sais(s1, sa1, n1, name)
+	if int(name) < n1 {
+		sais(s1, sa1, n1, int(name))
 	} else {
-		for i in 0..<n1 do sa1[s1[i]] = i
+		for i in 0..<n1 do sa1[s1[i]] = i32(i)
 	}
 
-	get_buckets(s, bkt, n, k, true)
+	get_buckets(counts, bkt, k, true)
 	j = 0
 	for i in 1..<n {
-		if is_s[i] && !is_s[i - 1] {
-			s1[j] = i
+		if is_s_get(is_s, i) && !is_s_get(is_s, i - 1) {
+			s1[j] = i32(i)
 			j += 1
 		}
 	}
@@ -126,22 +148,23 @@ sais :: proc(s: []int, sa: []int, n: int, k: int) {
 	slice.fill(sa, -1)
 	for i := n1 - 1; i >= 0; i -= 1 {
 		pos := sa1[i]
-		bkt[s[pos]] -= 1
-		sa[bkt[s[pos]]] = pos
+		c := int(s[pos])
+		bkt[c] -= 1
+		sa[bkt[c]] = pos
 	}
 
-	induce_sort(s, sa, is_s, n, k, bkt)
+	induce_sort(s, sa, is_s, n, k, counts, bkt)
 }
 
 bwt_encode :: proc(input: []u8, output: []u8) -> u32 {
 	n := len(input)
 
-	s := make([]int, n + 1)
+	s := make([]u16, n + 1)
 	defer delete(s)
-	for i in 0..<n do s[i] = int(input[i]) + 1
+	for i in 0..<n do s[i] = u16(input[i]) + 1
 	s[n] = 0
 
-	sa := make([]int, n + 1)
+	sa := make([]i32, n + 1)
 	defer delete(sa)
 	sais(s, sa, n + 1, 257)
 

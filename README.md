@@ -6,7 +6,7 @@ A simple file compressor
 
 > [!WARNING]
 > Do not run on untrusted input. The author assume no responsibility for any data loss or corruption.
->
+> This is an experiment and should not be used for any file above 100 MB.
 
 ## Overview
 
@@ -36,7 +36,8 @@ odin run . -define:SFX=shakespeare.txt
 
 | Algorithm / Level   | Compressed Size (bytes) | Compression Time (s) | Decompression Time (s) |
 | ------------------- | ----------------------- | -------------------- | ---------------------- |
-| `fc (ours)`         |              20,789,655 |             20.192 s |               15.089 s |
+| `fc (ours)`         |              20,789,655 |             12.672 s |               14.497 s |
+| `bsc (-b100 -e2)`   |              20,803,016 |              2.977 s |                1.356 s |
 | `xz / LZMA2 (-9)`   |              24,865,244 |             79.018 s |                1.067 s |
 | `xz / LZMA2 (-6)`   |              26,375,764 |             55.579 s |                1.140 s |
 | `zstd (-19)`        |              26,936,936 |             53.059 s |                0.148 s |
@@ -69,4 +70,5 @@ odin run . -define:SFX=shakespeare.txt
 - [Suffix Array Construction (CP-Algorithms)](https://cp-algorithms.com/string/suffix-array.html)
 - [3Blue1Brown: "But what is cross-entropy? | Compression is Intelligence Part 2"](https://www.youtube.com/watch?v=GlYgs6v2YfU)
 - [libsais (GitHub)](https://github.com/IlyaGrebnov/libsais)
+- [bsc (GitHub)](https://github.com/IlyaGrebnov/bsc)
 - [bzip3 (GitHub)](https://github.com/iczelia/bzip3)
